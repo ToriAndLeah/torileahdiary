@@ -5,92 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tori & Leah's Diary</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            background: linear-gradient(to bottom, #dff1ff, #ffe6e6);
-            margin: 0;
-            padding: 0;
-        }
-        .container {
-            margin-top: 50px;
-        }
-        .title {
-            font-size: 2.5em;
-            color: #4a4a4a;
-            margin-bottom: 10px;
-        }
-        .subtitle {
-            color: #6b6b6b;
-            margin-bottom: 20px;
-        }
-        .input-container {
-            margin: 20px 0;
-        }
-        .input-container input {
-            padding: 10px;
-            font-size: 1em;
-            width: 200px;
-        }
-        .mood-section {
-            margin: 20px 0;
-        }
-        .mood-section img {
-            width: 50px;
-            margin: 0 10px;
-            cursor: pointer;
-        }
-        .diary-section {
-            margin: 20px 0;
-        }
-        .diary-section textarea {
-            width: 300px;
-            height: 100px;
-            padding: 10px;
-            font-size: 1em;
-            margin-top: 10px;
-            display: none; /* 初始隐藏 */
-        }
-        .footer {
-            margin-top: 30px;
-            font-size: 0.9em;
-            color: #9b9b9b;
-        }
-        .history-section {
-            margin: 30px auto;
-            max-width: 500px;
-            text-align: left;
-            background: rgba(255, 255, 255, 0.8);
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0px 10px 10px rgba(0, 0, 0, 0.1);
-        }
-        .history-section h3 {
-            text-align: center;
-            color: #4a4a4a;
-            margin-bottom: 10px;
-        }
-        #history-list {
-            list-style: none;
-            padding: 0;
-        }
-        #history-list li {
-            margin: 5px 0;
-            font-size: 1em;
-            color: #333;
-        }
-textarea {
-    display: block; /* 确保它是独占一行的块元素 */
-    margin: 20px auto; /* 上下20px距离，两边居中 */
-    width: 90%; /* 或者调整到你想要的宽度 */
-    max-width: 500px; /* 设置最大宽度，避免太宽 */
-    font-size: 1em; /* 让字体看起来和别的地方一致 */
-    padding: 10px; /* 给输入框留点内部空间 */
-    border: 1px solid #ccc; /* 添加边框，和整体风格统一 */
-    border-radius: 5px; /* 圆角边框更可爱！ */
-    box-shadow: 0px 0px 5px rgba(0, 0, 0, 0.1); /* 微妙的阴影更美观 */
-}
-
+        /* 样式部分保持不变 */
     </style>
 </head>
 <body>
@@ -128,7 +43,26 @@ textarea {
         </div>
     </div>
 
-    <script>
+    <script type="module">
+        // 引入 Firebase SDK
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.16.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/9.16.0/firebase-firestore.js";
+
+        // 配置 Firebase
+        const firebaseConfig = {
+            apiKey: "你的API密钥",
+            authDomain: "你的Auth域名",
+            projectId: "你的项目ID",
+            storageBucket: "你的存储桶",
+            messagingSenderId: "你的消息发送ID",
+            appId: "你的应用ID",
+        };
+
+        // 初始化 Firebase 和 Firestore
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // 获取页面元素
         const moodImages = document.querySelectorAll('.mood-section img');
         const dateInput = document.getElementById('date');
         const diaryCheckbox = document.getElementById('diary-checkbox');
@@ -140,9 +74,9 @@ textarea {
             diaryInput.style.display = diaryCheckbox.checked ? 'block' : 'none';
         });
 
-        // 保存心情和日记的逻辑
+        // 保存心情和日记到 Firestore
         moodImages.forEach(img => {
-            img.addEventListener('click', () => {
+            img.addEventListener('click', async () => {
                 const selectedDate = dateInput.value;
                 if (!selectedDate) {
                     alert('Please select a date first!');
@@ -150,46 +84,34 @@ textarea {
                 }
                 const mood = img.alt;
                 const diary = diaryCheckbox.checked ? diaryInput.value : '';
-                const entry = {
-                    mood,
-                    diary,
-                };
-                localStorage.setItem(selectedDate, JSON.stringify(entry));
-                alert(`Mood for ${selectedDate} saved as: ${mood}${diary ? `\nDiary: ${diary}` : ''}`);
-                updateHistory();
+                try {
+                    await addDoc(collection(db, "diary_entries"), {
+                        date: selectedDate,
+                        mood: mood,
+                        diary: diary,
+                        timestamp: new Date(),
+                    });
+                    alert(`Mood for ${selectedDate} saved as: ${mood}${diary ? `\nDiary: ${diary}` : ''}`);
+                    updateHistory(); // 更新历史记录
+                } catch (e) {
+                    console.error("Error adding document: ", e);
+                }
             });
         });
 
-        // 更新历史记录的逻辑
-        function updateHistory() {
+        // 更新历史记录
+        async function updateHistory() {
             historyList.innerHTML = ''; // 清空历史记录
-            const keys = Object.keys(localStorage).sort(); // 获取并排序所有日期
-            keys.forEach(key => {
-                const entry = JSON.parse(localStorage.getItem(key));
+            const querySnapshot = await getDocs(collection(db, "diary_entries"));
+            querySnapshot.forEach(doc => {
+                const entry = doc.data();
                 const mood = entry.mood || 'No mood';
                 const diary = entry.diary ? ` - Diary: ${entry.diary}` : '';
                 const listItem = document.createElement('li');
-                listItem.textContent = `Date: ${key}, Mood: ${mood}${diary}`;
+                listItem.textContent = `Date: ${entry.date}, Mood: ${mood}${diary}`;
                 historyList.appendChild(listItem);
             });
         }
-function updateHistory() {
-    historyList.innerHTML = ''; // 清空历史记录
-    const keys = Object.keys(localStorage).sort(); // 获取并排序所有日期
-    keys.forEach(key => {
-        try {
-            const entry = JSON.parse(localStorage.getItem(key));
-            const mood = entry.mood || 'No mood';
-            const diary = entry.diary ? ` - Diary: ${entry.diary}` : '';
-            const listItem = document.createElement('li');
-            listItem.textContent = `Date: ${key}, Mood: ${mood}${diary}`;
-            historyList.appendChild(listItem);
-        } catch (error) {
-            console.warn(`Skipping invalid data for key: ${key}`);
-        }
-    });
-}
-
 
         // 页面加载时更新历史记录
         updateHistory();
